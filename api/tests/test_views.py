@@ -53,23 +53,62 @@ class CategoryViewTests(APITestCase):
             "name": "Books",
             "parent_category": None,
         }
+        
+        self.assertFalse(Category.objects.filter(company=self.other_company, name="Books").exists())
 
         response = self.client.post(reverse("category-list"), payload, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(Category.objects.filter(company=self.other_company, name="Books").exists())
 
-    # カテゴリの更新テスト
-    def test_update(self):
-        payload = {"name": "Beverage"}
+    def test_create_duplication(self):
+        payload = {
+            "company": str(self.parent_category_company.id),
+            "name": "Food",
+            "parent_category": None,
+        }
+        
+        self.assertTrue(Category.objects.filter(company=self.parent_category_company, name="Food").exists())
 
+        response = self.client.post(reverse("category-list"), payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # カテゴリの更新テスト
+    # 部分更新（PATCH）でカテゴリ名を変更
+    def test_update_patch(self):        
+        self.assertEqual(self.parent_category.name, "Food")
+
+        payload = {"name": "Beverage"}
         response = self.client.patch(reverse("category-detail", args=[self.parent_category.id]), payload, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(self.parent_category.name, "Food") 
-
         self.parent_category.refresh_from_db()
         self.assertEqual(self.parent_category.name, "Beverage")
+
+    # 全体更新（PUT）でパッチを当ててもカテゴリ名が変更されないことを確認                
+    def test_update_patch_by_put(self):
+        self.assertEqual(self.parent_category.name, "Food")
+
+        payload = { "name": "Beverage" }
+        response = self.client.put(reverse("category-detail", args=[self.parent_category.id]), payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.parent_category.refresh_from_db()
+        self.assertEqual(self.parent_category.name, "Food")
+
+    # 全体更新（PUT）でカテゴリ名を変更
+    def test_update_put(self):
+        payload = {
+            "company": str(self.parent_category_company.id),
+            "name": "Beverage",
+            "parent_category": None,
+        }
+        response = self.client.put(reverse("category-detail", args=[self.parent_category.id]), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.parent_category.refresh_from_db()
+        self.assertEqual(self.parent_category.name, "Beverage")
+
 
     # カテゴリの削除テスト
     def test_destroy(self):
